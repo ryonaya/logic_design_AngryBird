@@ -31,6 +31,24 @@ module collision(
     reg [17-1:0] next_pig_force_x, next_pig_force_y;
     reg [17-1:0] next_bird_force_x  [3-1:0], next_bird_force_y  [3-1:0];
     reg [17-1:0] bird_force_x       [3-1:0], bird_force_y       [3-1:0];
+    wire ooii, oioi, iooi, oiio, ioio, iioo;
+    wire signed [17-1:0] abs_vx0, abs_vy0, abs_vx1, abs_vy1, abs_vx2, abs_vy2, abs_vxp, abs_vyp;
+
+    assign abs_vx0 = ((bird_vx[0]^(bird_vx[0]>>>16))-(bird_vx[0]>>>16));
+    assign abs_vy0 = ((bird_vy[0]^(bird_vy[0]>>>16))-(bird_vy[0]>>>16));
+    assign abs_vx1 = ((bird_vx[1]^(bird_vx[1]>>>16))-(bird_vx[1]>>>16));
+    assign abs_vy1 = ((bird_vy[1]^(bird_vy[1]>>>16))-(bird_vy[1]>>>16));
+    assign abs_vx2 = ((bird_vx[2]^(bird_vx[2]>>>16))-(bird_vx[2]>>>16));
+    assign abs_vy2 = ((bird_vy[2]^(bird_vy[2]>>>16))-(bird_vy[2]>>>16));
+    assign abs_vxp = ((pig_vx^(pig_vx>>>16))-(pig_vx>>>16));
+    assign abs_vyp = ((pig_vy^(pig_vy>>>16))-(pig_vy>>>16));
+
+    assign ooii = ( abs_vx0 < 64 && abs_vy0 < 64 ) && ( abs_vxp < 64 && abs_vyp < 64 );
+    assign oioi = ( abs_vx1 < 64 && abs_vy1 < 64 ) && ( abs_vxp < 64 && abs_vyp < 64 );
+    assign iooi = ( abs_vx2 < 64 && abs_vy2 < 64 ) && ( abs_vxp < 64 && abs_vyp < 64 );
+    assign oiio = ( abs_vx0 < 64 && abs_vy0 < 64 ) && ( abs_vx1 < 64 && abs_vy1 < 64 );
+    assign ioio = ( abs_vx0 < 64 && abs_vy0 < 64 ) && ( abs_vx2 < 64 && abs_vy2 < 64 );
+    assign iioo = ( abs_vx1 < 64 && abs_vy1 < 64 ) && ( abs_vx2 < 64 && abs_vy2 < 64 );
 
     /// input 1D to 2D
     assign bird_vx[0] = big_bird_vx[16:0];
@@ -89,6 +107,7 @@ module collision(
         end
     end
 
+    parameter STICK_REPEL = 17'd40;
     /// Force, Phase 1
     always @* begin  
         next_bird_force_x[0] = 0;                 
@@ -101,54 +120,61 @@ module collision(
         next_pig_force_y = 0;
         case (collide)              // Who are colliding
         4'b0011 : begin
+            if(ooii) begin
+                next_bird_force_x[0] = STICK_REPEL;
+                next_bird_force_y[0] = -STICK_REPEL;
+                next_pig_force_x = -STICK_REPEL;
+                next_pig_force_y = -STICK_REPEL;
+            end else begin
             case (bird_dir[0])  // Which direction of collider A
             3'd0    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 2);
-                next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
-                next_pig_force_x = bird_vx[0] >>> 1;
-                next_pig_force_y = bird_vy[0];
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 2);
+                    next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
+                    next_pig_force_x = bird_vx[0] >>> 1;
+                    next_pig_force_y = bird_vy[0];
             end
             3'd1    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
-                next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
-                next_pig_force_x = bird_vx[0];
-                next_pig_force_y = bird_vy[0];
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
+                    next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
+                    next_pig_force_x = bird_vx[0];
+                    next_pig_force_y = bird_vy[0];    
             end
             3'd2    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
-                next_bird_force_y[0] = pig_vy;
-                next_pig_force_x = bird_vx[0];
-                next_pig_force_y = bird_vy[0] >>> 1;
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
+                    next_bird_force_y[0] = pig_vy;
+                    next_pig_force_x = bird_vx[0];
+                    next_pig_force_y = bird_vy[0] >>> 1;    
             end
             3'd3    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
-                next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
-                next_pig_force_x = bird_vx[0] >>> 1;
-                next_pig_force_y = bird_vy[0] >>> 1;
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
+                    next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
+                    next_pig_force_x = bird_vx[0] >>> 1;
+                    next_pig_force_y = bird_vy[0] >>> 1;    
+                
             end
             3'd4    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
-                next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
-                next_pig_force_x = bird_vx[0] >>> 1;
-                next_pig_force_y = bird_vy[0] >>> 1;
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
+                    next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
+                    next_pig_force_x = bird_vx[0] >>> 1;
+                    next_pig_force_y = bird_vy[0] >>> 1;    
             end
             3'd5    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
-                next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
-                next_pig_force_x = -(bird_vx[0] >>> 1);
-                next_pig_force_y = bird_vy[0] >>> 1;
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
+                    next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
+                    next_pig_force_x = -(bird_vx[0] >>> 1);
+                    next_pig_force_y = bird_vy[0] >>> 1;    
             end
             3'd6    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
-                next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
-                next_pig_force_x = bird_vx[0] >>> 1;
-                next_pig_force_y = bird_vy[0];
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
+                    next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
+                    next_pig_force_x = bird_vx[0] >>> 1;
+                    next_pig_force_y = bird_vy[0];    
             end
             3'd7    : begin
-                next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
-                next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
-                next_pig_force_x = bird_vx[0];
-                next_pig_force_y = bird_vy[0];
+                    next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
+                    next_bird_force_y[0] = pig_vy - (bird_vy[0] >>> 1);
+                    next_pig_force_x = bird_vx[0];
+                    next_pig_force_y = bird_vy[0];    
             end
             default : begin
                 next_bird_force_x[0] = pig_vx - (bird_vx[0] >>> 1);
@@ -157,8 +183,15 @@ module collision(
                 next_pig_force_y = bird_vy[0] >>> 1;
             end
             endcase
+            end
         end
         4'b0101 : begin
+            if(oioi) begin
+                next_bird_force_x[1] = STICK_REPEL;
+                next_bird_force_y[1] = -STICK_REPEL;
+                next_pig_force_x = -STICK_REPEL;
+                next_pig_force_y = -STICK_REPEL;
+            end else begin
             case (bird_dir[1])  
             3'd0    : begin
                 next_bird_force_x[1] = pig_vx - (bird_vx[1] >>> 2);
@@ -215,8 +248,15 @@ module collision(
                 next_pig_force_y = bird_vy[1] >>> 1;
             end
             endcase
+            end
         end
         4'b1001 : begin
+            if(iooi) begin
+                next_bird_force_x[2] = STICK_REPEL;
+                next_bird_force_y[2] = -STICK_REPEL;
+                next_pig_force_x = -STICK_REPEL;
+                next_pig_force_y = -STICK_REPEL;
+            end else begin
             case (bird_dir[2])  
             3'd0    : begin
                 next_bird_force_x[2] = pig_vx - (bird_vx[2] >>> 2);
@@ -273,8 +313,15 @@ module collision(
                 next_pig_force_y = bird_vy[2] >>> 1;
             end
             endcase
+            end
         end
-        4'b0110 :begin
+        4'b0110 : begin
+            if(oiio) begin
+                next_bird_force_x[0] = STICK_REPEL;
+                next_bird_force_y[0] = -STICK_REPEL;
+                next_bird_force_x[1] = -STICK_REPEL;
+                next_bird_force_y[1] = -STICK_REPEL;
+            end else begin
             case (bird_dir[1])  
             3'd0    : begin
                 next_bird_force_x[1] = bird_vx[0] - (bird_vx[1] >>> 2);
@@ -331,8 +378,15 @@ module collision(
                 next_bird_force_y[0] = bird_vy[1] >>> 1;
             end
             endcase
+            end
         end
         4'b1010 : begin
+            if(ioio) begin
+                next_bird_force_x[0] = STICK_REPEL;
+                next_bird_force_y[0] = -STICK_REPEL;
+                next_bird_force_x[2] = -STICK_REPEL;
+                next_bird_force_y[2] = -STICK_REPEL;
+            end else begin
             case (bird_dir[2])  
             3'd0    : begin
                 next_bird_force_x[2] = bird_vx[0] - (bird_vx[2] >>> 2);
@@ -389,8 +443,15 @@ module collision(
                 next_bird_force_y[0] = bird_vy[2] >>> 1;
             end
             endcase
+            end
         end
         4'b1100 : begin
+            if(iioo) begin
+                next_bird_force_x[1] = STICK_REPEL;
+                next_bird_force_y[1] = -STICK_REPEL;
+                next_bird_force_x[2] = -STICK_REPEL;
+                next_bird_force_y[2] = -STICK_REPEL;
+            end else begin
             case (bird_dir[2])  
             3'd0    : begin
                 next_bird_force_x[2] = bird_vx[1] - (bird_vx[2] >>> 2);
@@ -447,6 +508,49 @@ module collision(
                 next_bird_force_y[1] = bird_vy[2] >>> 1;
             end
             endcase
+            end
+        end
+        4'b0111 : begin
+            next_bird_force_x[0] = STICK_REPEL;
+            next_bird_force_y[0] = -STICK_REPEL;
+            next_bird_force_x[1] = -STICK_REPEL;
+            next_bird_force_y[1] = -STICK_REPEL;
+            next_pig_force_x = 0;
+            next_pig_force_y = -STICK_REPEL;
+        end
+        4'b1011 : begin
+            next_bird_force_x[0] = STICK_REPEL;
+            next_bird_force_y[0] = -STICK_REPEL;
+            next_bird_force_x[2] = -STICK_REPEL;
+            next_bird_force_y[2] = -STICK_REPEL;
+            next_pig_force_x = 0;
+            next_pig_force_y = -STICK_REPEL;
+        end
+        4'b1101 : begin
+            next_bird_force_x[1] = STICK_REPEL;
+            next_bird_force_y[1] = -STICK_REPEL;
+            next_bird_force_x[2] = -STICK_REPEL;
+            next_bird_force_y[2] = -STICK_REPEL;
+            next_pig_force_x = 0;
+            next_pig_force_y = -STICK_REPEL;
+        end
+        4'b1110 : begin
+            next_bird_force_x[1] = STICK_REPEL;
+            next_bird_force_y[1] = -STICK_REPEL;
+            next_bird_force_x[2] = -STICK_REPEL;
+            next_bird_force_y[2] = -STICK_REPEL;
+            next_bird_force_x[0] = STICK_REPEL;
+            next_bird_force_y[0] = -STICK_REPEL;
+        end
+        4'b1111 : begin
+            next_bird_force_x[1] = STICK_REPEL;
+            next_bird_force_y[1] = -STICK_REPEL;
+            next_bird_force_x[2] = -STICK_REPEL;
+            next_bird_force_y[2] = -STICK_REPEL;
+            next_pig_force_x = 0;
+            next_pig_force_y = -STICK_REPEL;
+            next_bird_force_x[0] = STICK_REPEL;
+            next_bird_force_y[0] = -STICK_REPEL;
         end
         default : begin
             next_bird_force_x[0] = 0;                 

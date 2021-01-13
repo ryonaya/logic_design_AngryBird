@@ -24,6 +24,7 @@ module top(
               LOADING_ANIM  = 2'd1,         // Main Bird on interpolation of (64, 380) -> (100, 325). Others move to (x + 32, 380).
               WAIT_FOR_SHOT = 2'd2,         // Main Bird should on (100, 325), 
               FLYING        = 2'd3;         // Main Bird should fly to random place, and then change state to WAIT_FOR_LOAD.
+    parameter BROWN = 12'h840;
 
     /// <DECLARATION_Basics>
     ///
@@ -31,7 +32,7 @@ module top(
     wire [12-1:0] data_12b;
     wire [5-1:0]  data_5b;
     wire clk_25MHz;
-    wire db_rst, rst;
+    (* max_fanout = 16 *)wire db_rst, rst;
     wire op_vsync, inv_vsync;
     reg  op_vsync2, op_vsync3, op_vsync4, op_vsync5, op_vsync6;
     wire [10-1:0] h_cnt,   //640
@@ -48,43 +49,27 @@ module top(
     wire [5-1:0]  pre_bg_pixel;             // 12 bits -> 5 bits
     wire [17-1:0] menu_pixel_addr;          // menu         : 76800
     wire [5-1:0]  pre_menu_pixel;           // 12 bits -> 5 bits
+    wire [17-1:0] scor_pixel_addr;          // scor         : 76800
+    wire [5-1:0]  pre_scor_pixel;           // 12 bits -> 5 bits
     wire [10-1:0] bird_pixel_addr [3-1:0];  // bird         : 1024
     reg  [10-1:0] valid_bird_pixel_addr;
     wire [10-1:0] pig_pixel_addr;           // pig          : 1024
     wire [12-1:0] slingshot_pixel_addr;     // slingshot    : 2610
     wire [12-1:0] bg_pixel, 
                   menu_pixel, 
+                  scor_pixel,
                   pig_pixel, 
                   slingshot_pixel,
                   bird_pixel;
     reg  [12-1:0] bird_pig_pixel, 
                   pixel;
     reg  [12-1:0] color;
+    reg  on_line;                           // On slingshot rope
+    wire signed [17-1:0] dx, dy;
     wire [3-1:0]  bird;
     wire any_bird, 
          pig, 
          slingshot;
-
-
-    /// <DECLARATION_Collides>
-    ///
-    /// </DECLARATION_Collides>
-    wire [17-1:0] bird_force_x [3-1:0];
-    wire [17-1:0] bird_force_y [3-1:0];
-    wire [17-1:0] pig_force_x;
-    wire [17-1:0] pig_force_y;
-    wire [4-1:0] collide;
-    reg  [4-1:0] op_collide;
-    assign collide = {bird, pig};
-    // assign LED = |op_collide;
-    always @(posedge clk) begin
-        if(collide != 4'b0000 && collide != 4'b0001 && collide != 4'b0010 && collide != 4'b0100 && collide != 4'b1000)
-            op_collide <= collide;
-        else if(op_vsync2)
-            op_collide <= 0;
-        else 
-            op_collide <= op_collide;
-    end
 
 
     /// <DECLARATION_Pig>
@@ -142,6 +127,27 @@ module top(
         end
     end
 
+
+    /// <DECLARATION_Collides>
+    ///
+    /// </DECLARATION_Collides>
+    wire [17-1:0] bird_force_x [3-1:0];
+    wire [17-1:0] bird_force_y [3-1:0];
+    wire [17-1:0] pig_force_x;
+    wire [17-1:0] pig_force_y;
+    wire [4-1:0] collide;
+    reg  [4-1:0] op_collide;
+    assign collide = {(bird[2] && bird_macro_state > 1), (bird[1] && bird_macro_state > 0), bird[0], pig};           // Bird 2 1 0, pig 0
+    always @(posedge clk) begin
+        if(op_vsync2 || game_state != GAME || rst)
+            op_collide <= 0;
+        else if( (collide[0] + collide[1]) + (collide[2] + collide[3]) >= 2 )
+            op_collide <= collide;
+        else 
+            op_collide <= op_collide;
+    end
+
+
     ///   <Game State>
     /// Game flow control
     ///   </Game State>
@@ -182,7 +188,7 @@ module top(
 
 
     ///   <Bird State>
-    /// 
+    /// Determine Main Bird behaviour.
     ///   </Bird State>
     always @(posedge clk) begin             // Bird state control
         if(rst || game_state != GAME)   bird_state <= WAIT_FOR_LOAD;
@@ -212,12 +218,29 @@ module top(
                     color[11:8] = menu_pixel[11:8]>>(menu_cnt>>5);
                 end
                 GAME    :  begin
-                    if((any_bird | pig) && bird_pig_pixel != 12'hF6F)    color = bird_pig_pixel;
-                    else if(slingshot && slingshot_pixel != 12'hF6F)     color = slingshot_pixel;
-                    else                                                 color = bg_pixel;
+                    if(on_line)                                             color = BROWN;
+                    else if((any_bird | pig) && bird_pig_pixel != 12'hF6F)  color = bird_pig_pixel;
+                    else if(slingshot && slingshot_pixel != 12'hF6F)        color = slingshot_pixel;
+                    else                                                    color = bg_pixel;
                 end
                 SCOR    :  begin
-                    color = 12'b001000100010;
+                    if(scor_pixel != 12'hf6f)                                   
+                        color = scor_pixel;
+                    else if((any_bird | pig) && bird_pig_pixel != 12'hF6F) begin
+                        color[3:0]  = bird_pig_pixel[3:0] >> 1;
+                        color[7:4]  = bird_pig_pixel[7:4] >> 1;
+                        color[11:8] = bird_pig_pixel[11:8]>> 1;
+                    end     
+                    else if(slingshot && slingshot_pixel != 12'hF6F) begin
+                        color[3:0]  = slingshot_pixel[3:0] >> 1;
+                        color[7:4]  = slingshot_pixel[7:4] >> 1;
+                        color[11:8] = slingshot_pixel[11:8]>> 1;
+                    end           
+                    else begin
+                        color[3:0]  = bg_pixel[3:0] >> 1;
+                        color[7:4]  = bg_pixel[7:4] >> 1;
+                        color[11:8] = bg_pixel[11:8]>> 1;
+                    end 
                 end
                 default : begin
                     color = 12'h0;
@@ -226,6 +249,7 @@ module top(
         end
         else color = 12'h0;
     end 
+
     always @* begin         // Birds and Pigs are on the same layer
         if(any_bird)
             bird_pig_pixel = bird_pixel;
@@ -234,6 +258,27 @@ module top(
     end
     assign any_bird = |bird;
     assign {vgaRed, vgaGreen, vgaBlue} = {color[11:8], color[7:4], color[3:0]};
+
+    /// Rope
+    wire ul, ur, dl, dr;
+    wire [3:0] sel;
+    assign ul = (deltaX[16] == 1 && deltaY[16] == 1) && (h_cnt <= 10'd116 && h_cnt >= 10'd116+deltaX[9:0]) && (v_cnt <= 10'd341 && v_cnt >= 10'd341+deltaY[9:0]);
+    assign ur = (deltaX[16] == 0 && deltaY[16] == 1) && (h_cnt >= 10'd116 && h_cnt <= 10'd116+deltaX[9:0]) && (v_cnt <= 10'd341 && v_cnt >= 10'd341+deltaY[9:0]);
+    assign dl = (deltaX[16] == 1 && deltaY[16] == 0) && (h_cnt <= 10'd116 && h_cnt >= 10'd116+deltaX[9:0]) && (v_cnt >= 10'd341 && v_cnt <= 10'd341+deltaY[9:0]);
+    assign dr = (deltaX[16] == 0 && deltaY[16] == 0) && (h_cnt >= 10'd116 && h_cnt <= 10'd116+deltaX[9:0]) && (v_cnt >= 10'd341 && v_cnt <= 10'd341+deltaY[9:0]);
+    assign sel = {ul, ur, dl ,dr};
+    assign dx = (h_cnt - 10'd116);
+    assign dy = (v_cnt - 10'd341);
+    always @(posedge clk_25MHz) begin
+        if(game_state == GAME && deltaX != 0) begin
+            if(|sel)
+                on_line <= ( dy >= (dx * (deltaY)) / (deltaX) -1 ) && ( dy <= (dx * (deltaY)) / (deltaX) +1 );
+            else 
+                on_line <= 0;
+        end
+        else 
+            on_line <= 0;
+    end
 
 
     ///   <Utilities>   
@@ -270,6 +315,7 @@ module top(
         .bg_pixel(bg_pixel)
     );
 
+
     ///   <Menu>   
     /// Generates Menu pixels
     ///   </Menu> 
@@ -285,6 +331,24 @@ module top(
         .pre_menu_pixel(pre_menu_pixel),
         .menu_pixel(menu_pixel)
     );
+
+
+    ///   <scor>   
+    /// Generates scor pixels
+    ///   </scor> 
+    assign scor_pixel_addr = (h_cnt>>1) + 320 * (v_cnt>>1); // display 320*240 image in 640*480 screen
+    blk_mem_gen_5       scor_inst(
+        .clka(clk_25MHz),
+        .wea(0),
+        .addra(scor_pixel_addr),
+        .dina(data_5b),
+        .douta(pre_scor_pixel)
+    ); 
+    scor_pixel_decode     scor_decode(
+        .pre_scor_pixel(pre_scor_pixel),
+        .scor_pixel(scor_pixel)
+    );
+
 
     ///   <Bird>
     /// Generates Bird pixels
@@ -310,7 +374,7 @@ module top(
     );
 generate
     for(i = 0; i < 3; i = i+1) begin
-        bird #(.IX(80-32*i), .IY(395), .NUM(i)) bird_mem_addr_gen (
+        bird #(.IX(80-32*i), .IY(396), .NUM(i)) bird_mem_addr_gen (
             .clk(clk),
             .rst(rst),
             .vsync(op_vsync),
@@ -320,6 +384,7 @@ generate
 
             .macro_state(bird_macro_state),
             .state(bird_state),
+            .game_state(game_state),
             .cnt(cnt),
             .pulse_en( (SPACE_down && game_state == GAME)),
             .deltaX(deltaX),
@@ -365,13 +430,16 @@ endgenerate
         .dina(data_12b),
         .douta(pig_pixel)
     );
-    pig #(.IX(500), .IY(395))                   pig_mem_addr_gen(
+    pig #(.IX(500), .IY(396))                   pig_mem_addr_gen(
         .clk(clk),
         .vsync (op_vsync),
         .vsync2(op_vsync2),
         .rst(rst),             
         .h_cnt(h_cnt),      
         .v_cnt(v_cnt),                  // basic i
+
+        .macro_state(bird_macro_state),
+        .game_state(game_state),
         .pig_force_x(pig_force_x),
         .pig_force_y(pig_force_y),      // main i
 
@@ -445,8 +513,8 @@ endgenerate
             deltaY <= 0;
         end
         else if(op_vsync) begin
-            if( ((next_deltaX[15] == 0 && next_deltaX > 16'd63) || (next_deltaX[15] == 1 && next_deltaX < -16'd63)) || 
-                ((next_deltaY[15] == 0 && next_deltaY > 16'd63) || (next_deltaY[15] == 1 && next_deltaY < -16'd63)) ) begin
+            if( ((next_deltaX[16] == 0 && next_deltaX > 17'd63) || (next_deltaX[16] == 1 && next_deltaX < -17'd63)) || 
+                ((next_deltaY[16] == 0 && next_deltaY > 17'd63) || (next_deltaY[16] == 1 && next_deltaY < -17'd63)) ) begin
             // if( (next_deltaX * next_deltaX) + (next_deltaY * next_deltaY) < 2304)       // radius = 48
                 deltaX <= deltaX;
                 deltaY <= deltaY;
@@ -464,13 +532,13 @@ endgenerate
     always @* begin                 // Conbinational
         if(bird_state == WAIT_FOR_SHOT) begin
             case({keys[3], keys[1]}) 
-                2'b10   : next_deltaY = deltaY - 16'd1;
-                2'b01   : next_deltaY = deltaY + 16'd1;
+                2'b10   : next_deltaY = deltaY - 17'd1;
+                2'b01   : next_deltaY = deltaY + 17'd1;
                 default : next_deltaY = deltaY;
             endcase
             case({keys[2], keys[0]}) 
-                2'b10   : next_deltaX = deltaX - 16'd1;
-                2'b01   : next_deltaX = deltaX + 16'd1;
+                2'b10   : next_deltaX = deltaX - 17'd1;
+                2'b01   : next_deltaX = deltaX + 17'd1;
                 default : next_deltaX = deltaX;
             endcase
         end

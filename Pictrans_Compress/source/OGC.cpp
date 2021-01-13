@@ -16,32 +16,32 @@ int main () {
     ifstream coefile (coeName + ".coe");
         if(!coefile.is_open()){
             cout << "Fuck you !" << '\n';
-            exit(0);
+            return 0;
         }
     cout << "Input : How many bits per color ? ( 1 ~ 12 )" << '\n';
     cin >> bitCount;
         if(bitCount < 1 || bitCount > 12){
             cout << "Fuck you !" << '\n';
-            exit(0);
+            return 0;
         }
     cout << "Input : Width" << '\n';
     cin >> width;
         if(width < 0 || width > 2160){
             cout << "Fuck you !" << '\n';
-            exit(0);
+            return 0;
         }
     cout << "Input : Height" << '\n';
     cin >> height;
         if(height < 0 || height > 1800){
             cout << "Fuck you !" << '\n';
-            exit(0);
+            return 0;
         }
 
     ofstream txtfile ("file.txt", ios::trunc);
     ofstream mappingfile ("mapping.txt", ios::trunc);
     if(txtfile.is_open() && mappingfile.is_open()){
         string cur;
-        string arr[1<<(bitCount)];
+        string arr[1050];
         getline(coefile, cur);
         getline(coefile, cur);
         txtfile << "memory_initialization_radix=2;" << '\n';
@@ -58,6 +58,10 @@ int main () {
             auto iter = encode.find(cur);
             if(iter == encode.end()){
                 encode.insert(pair<string, int>(cur, cnt));
+                if(cnt > 1<<(bitCount)){
+                    cout << "Fuck you !" << '\n';
+                    return 0;
+                }
                 arr[cnt++] = "    12'h" + cur;
             }
             string x;

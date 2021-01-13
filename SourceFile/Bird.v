@@ -19,6 +19,7 @@ module bird #(
     /// force and control input      
     input [3-1:0] macro_state, 
     input [2-1:0] state,
+    input [2-1:0] game_state,
     input [10-1:0] cnt,             // Bird behaviour timer
     input pulse_en,                 // Enable "Force to Velocity" calculation, should hold for a frame
     input signed [17-1:0] deltaX, deltaY,  // F = -k * deltaX
@@ -170,14 +171,26 @@ module bird #(
     assign main_bird = (macro_state == NUM) ? 1'b1 : 1'b0;
 
     reg pre_force;
+    reg [4-1:0] force_cd;
     always @(posedge clk) begin
-        if( ((|bird_force_x) | (|bird_force_y)) & vsync)
+        if( ((|bird_force_x) | (|bird_force_y)) & vsync )
             pre_force <= 1;
-        else if(vsync)
+        else if((&force_cd & vsync) | rst)
             pre_force <= 0;
         else 
             pre_force <= pre_force;
     end
+    always @(posedge clk) begin
+        if(rst)
+            force_cd <= 0;
+        else if(force_cd > 0 & vsync)
+            force_cd <= force_cd + 1;
+        else if(pre_force & vsync)
+            force_cd <= 1;
+        else 
+            force_cd <= force_cd;
+    end
+
 
     /// V, Combinational
     sa nvy_gravity(vy, GRAVITY, i_nvy);
@@ -186,7 +199,7 @@ module bird #(
 
     /// V, Force, Sequential
     always @ (posedge clk) begin
-        if (rst) begin
+        if (rst | game_state == 0) begin
             vx <= 0;
             vy <= 0;
         end
@@ -305,7 +318,7 @@ module bird #(
 
     /// X, Sequential
     always @ (posedge clk) begin
-        if (rst) begin    
+        if (rst | game_state == 0) begin    
             tmpx <= IX<<6;
             tmpy <= IY<<6;
         end

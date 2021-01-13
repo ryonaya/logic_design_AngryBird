@@ -64,12 +64,12 @@ parameter [12-1:0] list [0:30] = {
     12'hCDE,
     12'hDEF,
     12'hDFF,
-    12'hBCF,
     12'hFEA,
     12'hFE5,
     12'hEB2,
     12'hEC7,
     12'hC71,
+    12'hBCF,
     12'h7A5,
     12'h361,
     12'h490,
@@ -78,5 +78,48 @@ parameter [12-1:0] list [0:30] = {
     12'h014 
 };
 assign menu_pixel = list[pre_menu_pixel];
+
+endmodule
+
+module scor_pixel_decode(
+    input  [5-1:0]  pre_scor_pixel,
+    output [12-1:0] scor_pixel
+);
+
+parameter [12-1:0] list [0:31] = {
+    12'hF6F,
+    12'hFD9,
+    12'hFD6,
+    12'hEB7,
+    12'hFC4,
+    12'hFB3,
+    12'hEBA,
+    12'hFB2,
+    12'hEA3,
+    12'hC83,
+    12'hCA7,
+    12'hFFF,
+    12'hFED,
+    12'hEDB,
+    12'hBCB,
+    12'h9A9,
+    12'hFE0,
+    12'hED4,
+    12'hAC6,
+    12'h9D9,
+    12'h8DB,
+    12'h8FD,
+    12'h6DB,
+    12'h5CA,
+    12'h5B9,
+    12'h4A8,
+    12'h8CA,
+    12'h397,
+    12'h276,
+    12'hDDC,
+    12'h898,
+    12'h787 
+};
+assign scor_pixel = list[pre_scor_pixel];
 
 endmodule
